@@ -1,0 +1,49 @@
+# POT-SAM2 Hybrid Requirements
+
+# Core ML frameworks
+torch>=1.8.0
+torchvision>=0.9.0
+numpy>=1.19.0
+
+# SAM2 (install from source)
+# git clone https://github.com/facebookresearch/segment-anything-2.git
+# cd segment-anything-2 && pip install -e .
+
+# POT dependencies
+scikit-image>=0.18.0
+scikit-learn>=0.24.0  # for clustering evaluation
+opencv-python>=4.5.0
+kmeans-pytorch>=0.3.0  # GPU-accelerated K-means
+scipy>=1.6.0
+
+# Data handling
+Pillow>=8.0.0
+imageio>=2.9.0
+chainercv>=0.13.0  # for VOC dataset
+
+# Training utilities
+tensorboardX>=2.0
+tqdm>=4.60.0
+pyyaml>=5.4.0
+
+# Evaluation
+pandas>=1.2.0
+matplotlib>=3.3.0
+seaborn>=0.11.0  # for visualization
+
+# Optimal Transport
+pot>=0.8.0  # Python Optimal Transport library
+
+# Mixed Precision Training
+# (included in PyTorch 1.6+)
+
+# Optional: CLIP for CLIP-ES integration
+# git clone https://github.com/openai/CLIP.git
+# cd CLIP && pip install -e .
+
+# Optional: Development tools
+ipython>=7.20.0
+jupyter>=1.0.0
+black>=21.0  # code formatter
+pytest>=6.2.0  # testing
+
