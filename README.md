@@ -1,5 +1,9 @@
 # POT-SAM2 Hybrid: 最適輸送とSAM2を融合した次世代弱教師ありセグメンテーション
 
+[![GitHub](https://img.shields.io/badge/GitHub-suraimukun777-blue)](https://github.com/suraimukun777)
+[![Status](https://img.shields.io/badge/Status-Design%20Complete-green)](https://github.com/suraimukun777/POT-SAM2-Hybrid)
+[![Expected mIoU](https://img.shields.io/badge/Expected-mIoU%2080.5%25-orange)](https://github.com/suraimukun777/POT-SAM2-Hybrid)
+
 ## 概要
 
 このプロジェクトは、**POT (Prototypical Optimal Transport)** と **SAM2** の長所を組み合わせ、S2Cの致命的な弱点を克服する革新的な手法を提案します。
