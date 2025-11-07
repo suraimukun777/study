@@ -100,8 +100,12 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch, device):
         try:
             # データ準備
             img_name = pack['name'][0]
-            img = pack['img'].to(device)
+            img_original = pack['img'].to(device)
             label = pack['label'].to(device)
+            
+            # POTモデルは元画像とflip画像の両方を期待
+            img_flipped = torch.flip(img_original, dims=[-1])
+            img = torch.cat([img_original, img_flipped], dim=0)  # (2, 3, H, W)
             
             # CLIP-ES CAM読み込み
             clip_cam_path = os.path.join(args.clip_cam_dir, f'{img_name}.npy')
