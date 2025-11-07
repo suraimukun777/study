@@ -47,6 +47,8 @@ def parse_args():
                        help='Save visualization')
     parser.add_argument('--use_multiscale', action='store_true',
                        help='Use multiscale inference (improves small objects)')
+    parser.add_argument('--use_tta', action='store_true',
+                       help='Use test-time augmentation (TTA) for ensemble')
     
     return parser.parse_args()
 
@@ -158,6 +160,8 @@ def run_validation(model, dataloader, args):
         print("🔍 Using multiscale inference (scales: 0.5, 1.0, 1.5)")
     else:
         print("Using single-scale inference")
+    if args.use_tta:
+        print("🔄 Using test-time augmentation (TTA)")
     print("="*60 + "\n")
     
     # マルチスケール設定をモデルに反映
@@ -190,7 +194,12 @@ def run_validation(model, dataloader, args):
             # 推論
             try:
                 # return_loss=Falseで推論モード（SAM2を使用）
-                outputs = model(img, label_for_pot, cams_clip, keys, return_loss=False)
+                if args.use_tta:
+                    # TTA使用
+                    outputs = model.test_time_augmentation(img, label_for_pot, cams_clip, keys)
+                else:
+                    # 通常推論
+                    outputs = model(img, label_for_pot, cams_clip, keys, return_loss=False)
                 
                 # SAM2で生成されたマスクを取得
                 pred_mask = outputs['masks'][0].cpu().numpy().astype(np.uint8)

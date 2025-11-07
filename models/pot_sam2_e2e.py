@@ -28,7 +28,7 @@ class POTSAM2EndToEnd(nn.Module):
     """
     
     def __init__(self, sam2_checkpoint, sam2_config='sam2_hiera_l.yaml', 
-                 freeze_sam2=True, num_classes=21):
+                 freeze_sam2=True, unfreeze_sam2_decoder_layers=0, num_classes=21):
         super().__init__()
         
         self.num_classes = num_classes
@@ -44,12 +44,132 @@ class POTSAM2EndToEnd(nn.Module):
         if freeze_sam2:
             for param in self.sam2_model.parameters():
                 param.requires_grad = False
+            
+            # デコーダの一部を解凍（ファインチューニング用）
+            if unfreeze_sam2_decoder_layers > 0:
+                self._unfreeze_sam2_decoder(unfreeze_sam2_decoder_layers)
         
         # プロンプト生成用パラメータ
         self.cam_threshold = nn.Parameter(torch.tensor(0.5))
         
         # マルチスケール推論フラグ（デフォルトはFalse）
         self.use_multiscale = False
+        self.unfreeze_sam2_decoder_layers = unfreeze_sam2_decoder_layers
+    
+    def _unfreeze_sam2_decoder(self, num_layers=2):
+        """
+        SAM2デコーダの最後のnum_layers層を解凍してファインチューニング可能に
+        
+        Args:
+            num_layers: 解凍する層数
+        """
+        print(f"\n🔓 SAM2デコーダの最後の{num_layers}層を解凍...")
+        
+        # Mask decoderのパラメータを取得
+        mask_decoder = self.sam2_model.sam_mask_decoder
+        
+        # すべてのパラメータをリストに
+        all_params = list(mask_decoder.parameters())
+        
+        # 最後のnum_layers層を解凍
+        unfrozen_count = 0
+        for param in all_params[-num_layers:]:
+            param.requires_grad = True
+            unfrozen_count += param.numel()
+        
+        print(f"✅ {unfrozen_count:,} パラメータを解凍しました")
+        
+        # 解凍したパラメータの確認
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total_params = sum(p.numel() for p in self.parameters())
+        print(f"📊 学習可能パラメータ: {trainable_params:,} / {total_params:,} ({trainable_params/total_params*100:.2f}%)")
+    
+    def get_sam2_trainable_params(self):
+        """
+        SAM2の学習可能なパラメータを取得（オプティマイザ用）
+        """
+        sam2_params = []
+        for name, param in self.sam2_model.named_parameters():
+            if param.requires_grad:
+                sam2_params.append(param)
+        return sam2_params
+    
+    def test_time_augmentation(self, img, label, clip_cam, keys):
+        """
+        テストタイム拡張（TTA）
+        複数の拡張を適用してアンサンブル
+        
+        Args:
+            img: 入力画像 (B, 3, H, W)
+            label: クラスラベル
+            clip_cam: CLIP-ES CAM
+            keys: クラスキー
+        
+        Returns:
+            最終マスク（投票で統合）
+        """
+        predictions = []
+        
+        # 1. オリジナル
+        with torch.no_grad():
+            outputs = self.forward(img, label, clip_cam, keys, return_loss=False)
+            predictions.append(outputs['masks'])
+        
+        # 2. 水平反転
+        img_flip = torch.flip(img, dims=[-1])
+        cam_flip = np.flip(clip_cam, axis=-1).copy() if isinstance(clip_cam, np.ndarray) else torch.flip(clip_cam, dims=[-1])
+        
+        with torch.no_grad():
+            outputs_flip = self.forward(img_flip, label, cam_flip, keys, return_loss=False)
+            pred_flip = torch.flip(outputs_flip['masks'], dims=[-1])
+            predictions.append(pred_flip)
+        
+        # 3. スケール変動（オプション - use_multiscaleがFalseの場合のみ）
+        if not self.use_multiscale:
+            for scale in [0.75, 1.25]:
+                img_scaled = F.interpolate(img, scale_factor=scale, mode='bilinear', align_corners=False)
+                
+                # CAMもスケール
+                if isinstance(clip_cam, np.ndarray):
+                    h_scaled = int(clip_cam.shape[-2] * scale)
+                    w_scaled = int(clip_cam.shape[-1] * scale)
+                    from scipy.ndimage import zoom
+                    cam_scaled = zoom(clip_cam, (1, h_scaled/clip_cam.shape[-2], w_scaled/clip_cam.shape[-1]), order=1)
+                else:
+                    cam_scaled = F.interpolate(clip_cam, scale_factor=scale, mode='bilinear', align_corners=False)
+                
+                with torch.no_grad():
+                    outputs_scaled = self.forward(img_scaled, label, cam_scaled, keys, return_loss=False)
+                    # 元のサイズに戻す
+                    pred_scaled = F.interpolate(
+                        outputs_scaled['masks'].unsqueeze(1).float(),
+                        size=img.shape[2:],
+                        mode='nearest'
+                    ).squeeze(1).long()
+                    predictions.append(pred_scaled)
+        
+        # 投票で統合
+        final_mask = self._vote_predictions(predictions)
+        
+        return {'masks': final_mask}
+    
+    def _vote_predictions(self, predictions):
+        """
+        複数の予測を投票で統合
+        
+        Args:
+            predictions: マスクのリスト [(B, H, W), ...]
+        
+        Returns:
+            統合されたマスク (B, H, W)
+        """
+        # すべての予測をスタック
+        stacked = torch.stack(predictions, dim=0)  # (N, B, H, W)
+        
+        # 各ピクセルで最頻値を取得
+        final_mask, _ = torch.mode(stacked, dim=0)
+        
+        return final_mask
         
     def forward(self, img, label, clip_cam, keys, return_loss=True):
         """
