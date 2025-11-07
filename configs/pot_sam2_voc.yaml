@@ -1,0 +1,43 @@
+# POT-SAM2 Hybrid Configuration for VOC2012
+
+# Dataset
+dataset:
+  name: VOC2012
+  root: /workspace/POT/POT/VOCdevkit/VOC2012
+  train_list: /workspace/POT/POT/data/train_voc.txt
+  val_list: /workspace/POT/POT/data/val_voc.txt
+  num_classes: 21
+  image_dir: JPEGImages
+  label_dir: SegmentationClass
+  clip_cam_dir: /workspace/POT/POT/CLIP_ES_refined_CAM/cams_71
+
+# POT Model
+pot:
+  network: network.resnet50_POT
+  checkpoint: /workspace/POT/POT/exp/ckpt/best.pth
+  num_clusters: 2
+  scales: [1.0]
+  
+# SAM2 Model
+sam2:
+  checkpoint: /workspace/POT_SAM2_Hybrid/checkpoints/sam2_hiera_large.pt
+  config: sam2_hiera_l.yaml
+  
+# Prompting Strategy
+prompting:
+  strategy: points  # points, boxes, hybrid
+  num_points: 5
+  threshold: 0.5
+  
+# Inference
+inference:
+  batch_size: 1
+  num_workers: 4
+  output_dir: /workspace/POT_SAM2_Hybrid/experiments
+  
+# Evaluation
+evaluation:
+  gt_dir: /workspace/POT/POT/VOCdevkit/VOC2012/SegmentationClass
+
+
+

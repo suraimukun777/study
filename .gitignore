@@ -76,6 +76,14 @@ segment-anything-2/
 # CLIP-ES results
 CLIP_ES_refined_CAM/
 
+# Debug output
+debug_output/
+
+# Data files
+data_pot/
+
 # Local config overrides
 configs/local_*.yaml
+
+
 
