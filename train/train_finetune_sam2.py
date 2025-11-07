@@ -116,11 +116,16 @@ def train_epoch(model, dataloader, criterion, optimizer, epoch, device):
             cams_clip = cam_dict["attn_highres"]
             keys = cam_dict["keys"]
             
-            # Forward
-            outputs = model(img, label, cams_clip, keys, return_loss=True)
+            # labelを準備（POTは(21, 1, 1)を期待）
+            # labelは(1, 20)の形式（20クラス、背景なし）
+            label_for_pot = torch.nn.functional.pad(label[0], (1, 0), 'constant', 1.0)  # (21,)
+            label_for_pot = label_for_pot.unsqueeze(-1).unsqueeze(-1)  # (21, 1, 1)
             
-            # 損失計算
-            losses = criterion(outputs, label)
+            # Forward
+            outputs = model(img, label_for_pot, cams_clip, keys, return_loss=True)
+            
+            # 損失計算（label_for_potを使用）
+            losses = criterion(outputs, label_for_pot)
             loss = losses['total_loss']
             
             # Backward
